@@ -1,25 +1,37 @@
-
-init_weights <- function(dim_r = 32L, dim_z = dim_r, dim_hidden = 32L){
-  # weights for the encoder h
-  W_h <- tf$Variable(tf$random_normal(shape(2L, dim_r), mean = 0, stddev = 1))
+# create and return all weight tensors used in the NP model
+init_weights <- function(dim_r = 8L, dim_z = dim_r, dim_h_hidden = 32L, dim_g_hidden = 32L){
+  # weights for the encoder h, mapping (x, y) -> hidden -> r
+  W_h1 <- tf$Variable(tf$random_normal(shape(2L, dim_h_hidden)))
+  W_h2 <- tf$Variable(tf$random_normal(shape(dim_h_hidden, dim_r)))
   
   # weights for mapping r to (mu_z, sigma_z)
-  W_z_mu <- tf$Variable(tf$random_normal(shape(dim_r, dim_z), mean = 0, stddev = 1))
-  W_z_sigma <- tf$Variable(tf$random_normal(shape(dim_r, dim_z), mean = 0, stddev = 1))
+  W_z_mu <- tf$Variable(tf$random_normal(shape(dim_r, dim_z)))
+  W_z_sigma <- tf$Variable(tf$random_normal(shape(dim_r, dim_z)))
   
-  # weights for the decoder g
-  W_g_mu <- tf$Variable(tf$random_normal(shape(dim_z + 1L, dim_hidden), mean = 0, stddev = 1))
-  W_g_sigma <- tf$Variable(tf$random_normal(shape(dim_hidden, 1L), mean = 0, stddev = 1))
+  # weights for the decoder g, mapping (z, x) -> hidden -> y
+  W_g1 <- tf$Variable(tf$random_normal(shape(dim_z + 1L, dim_g_hidden)))
+  W_g2 <- tf$Variable(tf$random_normal(shape(dim_g_hidden, 1L)))
   
   # return all weights
-  list(W_h = W_h, 
+  list(W_h1 = W_h1,
+       W_h2 = W_h2, 
        W_z_mu = W_z_mu, 
        W_z_sigma = W_z_sigma, 
-       W_g_mu = W_g_mu, 
-       W_g_sigma = W_g_sigma, 
+       W_g1 = W_g1, 
+       W_g2 = W_g2, 
        dim_z = dim_z)
 }
 
+# helper function to map (x, y) -> z directly without intermediate steps
+map_xy_to_z_params <- function(x, y, weights){
+  list(x, y) %>%
+    tf$concat(axis = 1L) %>%
+    h(weights$W_h1, weights$W_h2) %>%
+    aggregate_r() %>%
+    get_z_params(weights$W_z_mu, weights$W_z_sigma)
+}
+
+# set up the NN architecture with train_op and loss
 init_NP <- function(weights, N_context, N_target){
   
   # inputs for training time
@@ -33,76 +45,81 @@ init_NP <- function(weights, N_context, N_target){
   y_all <- tf$concat(list(y_context, y_target), axis = 0L)
   
   # map input to z
-  z_context <- list(x_context, y_context) %>%
-    h(weights$W_h) %>%
-    aggregate_r() %>%
-    get_z_params(weights$W_z_mu, weights$W_z_sigma)
-  
-  z_context_and_target <- list(x_all, y_all) %>%
-    h(weights$W_h) %>%
-    aggregate_r() %>%
-    get_z_params(weights$W_z_mu, weights$W_z_sigma)
+  z_context <- map_xy_to_z_params(x_context, y_context, weights)
+  z_all <- map_xy_to_z_params(x_all, y_all, weights)
   
   # sample z using reparametrisation, z = mu + sigma*eps
   epsilon <- tf$random_normal(shape(1L, weights$dim_z))
   z_sample <- epsilon %>%
-    tf$multiply(z_context_and_target$sigma) %>%
-    tf$add(z_context_and_target$mu)
+    tf$multiply(z_all$sigma) %>%
+    tf$add(z_all$mu)
   
   # map (z, x*) to y*
-  y_pred_params <- g(z_sample, x_target, weights$W_g_mu, weights$W_g_sigma)
+  y_pred_params <- g(z_sample, x_target, weights$W_g1, weights$W_g2)
   
   # ELBO
   loglik <- loglikelihood(y_target, y_pred_params)
-  KL_loss <- KLqp_gaussian(z_context_and_target$mu, z_context_and_target$sigma, z_context$mu, z_context$sigma)
+  KL_loss <- KLqp_gaussian(z_all$mu, z_all$sigma, z_context$mu, z_context$sigma)
   loss <- tf$negative(loglik) + KL_loss
   
   # optimisation
   optimizer <- tf$train$AdamOptimizer()
   train_op <- optimizer$minimize(loss)
   
+  # return the helper function for feed_dict -- makes training easier
+  feed_dict_fun <- function(x, y, context_set){
+    x_c <- cbind(x[context_set])
+    y_c <- cbind(y[context_set])
+    x_t <- cbind(x[-context_set])
+    y_t <- cbind(y[-context_set])
+    dict(
+      x_context = x_c, 
+      y_context = y_c,
+      x_target = x_t, 
+      y_target = y_t
+    )
+  }
+  
   # return train_op and loss
   list(train_op = train_op, 
-       loss = loss)
+       loss = loss, 
+       feed_dict_fun = feed_dict_fun)
+}
+
+prior_predict <- function(weights, x_star_value){
+  N_star <- nrow(x_star_value)
+  x_star <- tf$constant(x_star_value, dtype = tf$float32)
+  
+  # draw z ~ N(0, 1)
+  z_sample <- tf$random_normal(shape(1L, weights$dim_z))
+  # y ~ g(z, x*)
+  y_star <- g(z_sample, x_star, weights$W_g1, weights$W_g2)
+  
+  y_star
 }
 
 
-condition_and_predict <- function(weights, data_test, n_draws = 10L){
+posterior_predict <- function(weights, x, y, x_star_value, epsilon = NULL){
   # inputs for prediction time
-  N_obs <- nrow(data_test$x)
-  N_star <- nrow(data_test$x_star)
-  x_obs <- tf$placeholder(tf$float32, shape(N_obs, 1))
-  y_obs <- tf$placeholder(tf$float32, shape(N_obs, 1))
-  x_star <- tf$placeholder(tf$float32, shape(N_star, 1))
+  x_obs <- tf$constant(x, dtype = tf$float32)
+  y_obs <- tf$constant(y, dtype = tf$float32)
+  x_star <- tf$constant(x_star_value, dtype = tf$float32)
   
   # for out-of-sample new points
-  z_params <- list(x_obs, y_obs) %>%
-    h(weights$W_h) %>%
-    aggregate_r() %>%
-    get_z_params(weights$W_z_mu, weights$W_z_sigma)
-  # reparametrisation
-  epsilon <- tf$random_normal(shape(1L, weights$dim_z))
+  z_params <- map_xy_to_z_params(x_obs, y_obs, weights)
+  
+  # the source of randomness can be optionally passed as an argument
+  if(is.null(epsilon)){
+    epsilon <- tf$random_normal(shape(1L, weights$dim_z))
+  }
+  # sample z using reparametrisation
   z_sample <- epsilon %>%
-    tf$cast(tf$float32) %>%
     tf$multiply(z_params$sigma) %>%
     tf$add(z_params$mu)
   
-  y_star <- g(z_sample, x_star, weights$W_g_mu, weights$W_g_sigma)
+  # predictions
+  y_star <- g(z_sample, x_star, weights$W_g1, weights$W_g2)
   
-  feed_dict_test <- dict(
-    x_obs = data_test$x, 
-    y_obs = data_test$y, 
-    x_star = data_test$x_star
-  )
-  
-  df_pred_list <- list()
-  
-  for(i in 1:n_draws){
-    y_star_pred <- sess$run(y_star$mu, feed_dict = feed_dict_test)
-    
-    df_pred_list[[i]] <- data.frame(x = as.numeric(data_test$x_star), y = y_star_pred, rep = i)
-  }
-  
-  df_pred <- bind_rows(df_pred_list)
-  df_pred
+  y_star
 }
+
