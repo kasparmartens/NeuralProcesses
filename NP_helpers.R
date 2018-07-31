@@ -28,34 +28,53 @@ get_z_params <- function(input_r, W_mu, W_sigma){
 }
 
 
-
 # decoder g -- map (z, x*) -> hidden -> y*
 g <- function(z_sample, x_star, W1, W2){
-  N_star <- x_star$get_shape()$as_list()[1]
+  # inputs dimensions
+  # z_sample has dim [n_draws, dim_z]
+  # x_star has dim [N_star, dim_x]
   
+  n_draws <- z_sample$get_shape()$as_list()[1]
+  N_star <- tf$shape(x_star)[1]
+  
+  # z_sample_rep will have dim [n_draws, N_star, dim_z]
   z_sample_rep <- z_sample %>%
-    tf$tile(shape(N_star, 1L))
+    tf$expand_dims(axis = 1L) %>%
+    tf$tile(c(1L, N_star, 1L))
   
-  input <- list(x_star, z_sample_rep) %>%
-    tf$concat(axis = 1L)
+  # x_star_rep will have dim [n_draws, N_star, dim_x]
+  x_star_rep <- x_star %>%
+    tf$expand_dims(axis = 0L) %>%
+    tf$tile(shape(n_draws, 1L, 1L))
   
+  # concatenate x* and z
+  input <- list(x_star_rep, z_sample_rep) %>%
+    tf$concat(axis = 2L)
+  
+  # batch matmul
+  W1_rep <- W1 %>%
+    tf$expand_dims(axis=0L) %>%
+    tf$tile(shape(n_draws, 1L, 1L))
+  
+  W2_rep <- W2 %>%
+    tf$expand_dims(axis=0L) %>%
+    tf$tile(shape(n_draws, 1L, 1L))
+  
+  # hidden layer
   hidden <- input %>%
-    tf$matmul(W1) %>%
+    tf$matmul(W1_rep) %>%
     tf$nn$sigmoid()
   
+  # mu will be of the shape [N_star, n_draws]
   mu_star <- hidden %>%
-    tf$matmul(W2) %>%
-    tf$reshape(shape(-1L))
+    tf$matmul(W2_rep) %>%
+    tf$squeeze(axis = 2L) %>%
+    tf$transpose()
   
-  # for the toy example, assume y* ~ N(mu, sigma) with fixed sigma = 0.1
-  sigma_star <- tf$constant(0.1, dtype = tf$float32)
+  # for the toy example, assume y* ~ N(mu, sigma) with fixed sigma = 0.05
+  sigma_star <- tf$constant(0.05, dtype = tf$float32)
   
   list(mu = mu_star, sigma = sigma_star)
-}
-
-# sample from Gaussian helper
-sample_gaussian <- function(obj, shape){
-  obj$mu + obj$sigma * tf$random_normal(shape)
 }
 
 # KLqp helper
@@ -68,10 +87,28 @@ KLqp_gaussian <- function(mu_q, sigma_q, mu_p, sigma_p){
 
 # for ELBO
 loglikelihood <- function(y_star, y_pred_params){
-  p_normal <- tf$distributions$Normal(loc = y_pred_params$mu, scale = y_pred_params$sigma)
   
+  p_normal <- tf$distributions$Normal(loc = y_pred_params$mu, scale = y_pred_params$sigma)
+
   loglik <- y_star %>%
-    tf$reshape(shape(-1L)) %>%
     p_normal$log_prob() %>%
-    tf$reduce_sum()
+    # sum over data points
+    tf$reduce_sum(axis=0L) %>%
+    # average over n_draws
+    tf$reduce_mean()
+  
+  loglik
 }
+
+# for training
+helper_context_and_target <- function(x, y, N_context, x_context, y_context, x_target, y_target){
+  N <- length(y)
+  context_set <- sample(1:N, N_context)
+  dict(
+    x_context = cbind(x[context_set]), 
+    y_context = cbind(y[context_set]),
+    x_target = cbind(x[-context_set]), 
+    y_target = cbind(y[-context_set])
+  )
+}
+

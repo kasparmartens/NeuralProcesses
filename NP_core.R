@@ -32,13 +32,7 @@ map_xy_to_z_params <- function(x, y, weights){
 }
 
 # set up the NN architecture with train_op and loss
-init_NP <- function(weights, N_context, N_target){
-  
-  # inputs for training time
-  x_context <- tf$placeholder(tf$float32, shape(N_context, 1))
-  y_context <- tf$placeholder(tf$float32, shape(N_context, 1))
-  x_target <- tf$placeholder(tf$float32, shape(N_target, 1))
-  y_target <- tf$placeholder(tf$float32, shape(N_target, 1))
+init_NP <- function(weights, x_context, y_context, x_target, y_target){
   
   # concatenate context and target
   x_all <- tf$concat(list(x_context, x_target), axis = 0L)
@@ -49,7 +43,7 @@ init_NP <- function(weights, N_context, N_target){
   z_all <- map_xy_to_z_params(x_all, y_all, weights)
   
   # sample z using reparametrisation, z = mu + sigma*eps
-  epsilon <- tf$random_normal(shape(1L, weights$dim_z))
+  epsilon <- tf$random_normal(shape(7L, weights$dim_z))
   z_sample <- epsilon %>%
     tf$multiply(z_all$sigma) %>%
     tf$add(z_all$mu)
@@ -66,32 +60,16 @@ init_NP <- function(weights, N_context, N_target){
   optimizer <- tf$train$AdamOptimizer()
   train_op <- optimizer$minimize(loss)
   
-  # return the helper function for feed_dict -- makes training easier
-  feed_dict_fun <- function(x, y, context_set){
-    x_c <- cbind(x[context_set])
-    y_c <- cbind(y[context_set])
-    x_t <- cbind(x[-context_set])
-    y_t <- cbind(y[-context_set])
-    dict(
-      x_context = x_c, 
-      y_context = y_c,
-      x_target = x_t, 
-      y_target = y_t
-    )
-  }
-  
   # return train_op and loss
-  list(train_op = train_op, 
-       loss = loss, 
-       feed_dict_fun = feed_dict_fun)
+  list(train_op, loss)
 }
 
-prior_predict <- function(weights, x_star_value){
+prior_predict <- function(weights, x_star_value, n_draws = 1L){
   N_star <- nrow(x_star_value)
   x_star <- tf$constant(x_star_value, dtype = tf$float32)
   
   # draw z ~ N(0, 1)
-  z_sample <- tf$random_normal(shape(1L, weights$dim_z))
+  z_sample <- tf$random_normal(shape(n_draws, weights$dim_z))
   # y ~ g(z, x*)
   y_star <- g(z_sample, x_star, weights$W_g1, weights$W_g2)
   
@@ -99,7 +77,7 @@ prior_predict <- function(weights, x_star_value){
 }
 
 
-posterior_predict <- function(weights, x, y, x_star_value, epsilon = NULL){
+posterior_predict <- function(weights, x, y, x_star_value, epsilon = NULL, n_draws = 1L){
   # inputs for prediction time
   x_obs <- tf$constant(x, dtype = tf$float32)
   y_obs <- tf$constant(y, dtype = tf$float32)
@@ -110,7 +88,7 @@ posterior_predict <- function(weights, x, y, x_star_value, epsilon = NULL){
   
   # the source of randomness can be optionally passed as an argument
   if(is.null(epsilon)){
-    epsilon <- tf$random_normal(shape(1L, weights$dim_z))
+    epsilon <- tf$random_normal(shape(n_draws, weights$dim_z))
   }
   # sample z using reparametrisation
   z_sample <- epsilon %>%
