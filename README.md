@@ -1,12 +1,29 @@
 # NeuralProcesses
 
-This is an implementation of Neural Processes for 1D-regression, accompanying [my blog post](http://kasparmartens.rbind.io/post/np/). 
+This is an implementation of Neural Processes for 1D-regression, accompanying [my blog post](https://kasparmartens.rbind.io/post/np/). 
+
+### Structure of the repo
 
 The implementation uses TensorFlow in R. 
 
 The file [NP_helpers.R](https://github.com/kasparmartens/NeuralProcesses/blob/master/NP_helpers.R) defines the neural networks $h$ and $g$ together with some helper functions. The file [NP_core.R](https://github.com/kasparmartens/NeuralProcesses/blob/master/NP_core.R) contains functions to initialise the weights, to define the loss function and a helper for posterior prediction. 
 
-For an example use, you can take a look at the toy example shown in [experiments/2_experiment.R](https://github.com/kasparmartens/NeuralProcesses/blob/master/experiments/2_experiment.R). The core parts are the following:
+All experiments can be found in the "experiments" folder. 
+
+### Example code
+
+Loading all the libraries and helper functions
+
+```R
+library(tidyverse)
+library(tensorflow)
+library(patchwork)
+
+source("NP_helpers.R")
+source("NP_core.R")
+source("GP_helpers.R")
+source("helpers_for_plotting.R")
+```
 
 Setting up the NP model: 
 
@@ -34,7 +51,7 @@ sess$run(init)
 
 ```
 
-Now we can fit the model as follows:
+Now, sampling data according to the function y = a*sin(x),we can fit the model as follows:
 
 ```R
 n_iter <- 30000
@@ -71,3 +88,4 @@ x_star <- seq(-4, 4, length=100)
 plot_posterior_draws(x0, y0, x_star, n_draws = 50)
 
 ```
+
