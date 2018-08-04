@@ -1,11 +1,13 @@
 # Helper functions for Neural Processes
 
 # encoder h -- map inputs (x_i, y_i) to r_i
-h <- function(input, W1, W2){
+h <- function(input, W1, b1, W2, b2){
   input %>%
     tf$matmul(W1) %>%
+    tf$add(b1) %>%
     tf$nn$sigmoid() %>%
-    tf$matmul(W2)
+    tf$matmul(W2) %>%
+    tf$add(b2)
 }
 
 # aggregate the output of h (i.e. values of r_i) to a single vector r
@@ -29,7 +31,7 @@ get_z_params <- function(input_r, W_mu, W_sigma){
 
 
 # decoder g -- map (z, x*) -> hidden -> y*
-g <- function(z_sample, x_star, W1, W2){
+g <- function(z_sample, x_star, W1, b1, W2, b2, noise_sd = 0.05){
   # inputs dimensions
   # z_sample has dim [n_draws, dim_z]
   # x_star has dim [N_star, dim_x]
@@ -55,7 +57,6 @@ g <- function(z_sample, x_star, W1, W2){
   W1_rep <- W1 %>%
     tf$expand_dims(axis=0L) %>%
     tf$tile(shape(n_draws, 1L, 1L))
-  
   W2_rep <- W2 %>%
     tf$expand_dims(axis=0L) %>%
     tf$tile(shape(n_draws, 1L, 1L))
@@ -63,16 +64,18 @@ g <- function(z_sample, x_star, W1, W2){
   # hidden layer
   hidden <- input %>%
     tf$matmul(W1_rep) %>%
+    tf$add(b1) %>%
     tf$nn$sigmoid()
   
   # mu will be of the shape [N_star, n_draws]
   mu_star <- hidden %>%
     tf$matmul(W2_rep) %>%
+    tf$add(b2) %>%
     tf$squeeze(axis = 2L) %>%
     tf$transpose()
   
-  # for the toy example, assume y* ~ N(mu, sigma) with fixed sigma = 0.05
-  sigma_star <- tf$constant(0.05, dtype = tf$float32)
+  # for the toy example, assume y* ~ N(mu, sigma) with fixed sigma
+  sigma_star <- tf$constant(noise_sd, dtype = tf$float32)
   
   list(mu = mu_star, sigma = sigma_star)
 }
