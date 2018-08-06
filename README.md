@@ -1,14 +1,15 @@
 # Neural Processes
 
-This is an implementation of Neural Processes for 1D-regression, accompanying [my blog post](https://kasparmartens.rbind.io/post/np/). 
-
 ![](fig/NP_banner.gif)
+
+This is an implementation of Neural Processes for 1D-regression, accompanying [my blog post](https://kasparmartens.rbind.io/post/np/). 
 
 ### Structure of the repo
 
-The implementation uses TensorFlow in R. 
+The implementation uses TensorFlow in R:
 
-The file [NP_helpers.R](https://github.com/kasparmartens/NeuralProcesses/blob/master/NP_helpers.R) defines the neural networks $h$ and $g$ together with some helper functions. The file [NP_core.R](https://github.com/kasparmartens/NeuralProcesses/blob/master/NP_core.R) contains functions to initialise the weights, to define the loss function and posterior prediction. 
+* The file [NP_helpers.R](https://github.com/kasparmartens/NeuralProcesses/blob/master/NP_helpers.R) defines the neural networks $h$ and $g$ together with some helper functions. 
+* The file [NP_core.R](https://github.com/kasparmartens/NeuralProcesses/blob/master/NP_core.R) contains functions to initialise the weights, to define the loss function and posterior prediction. 
 
 All experiments can be found in the "experiments" folder (where they appear in the same order as in the blog post): 
 
