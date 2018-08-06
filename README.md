@@ -2,7 +2,7 @@
 
 This is an implementation of Neural Processes for 1D-regression, accompanying [my blog post](https://kasparmartens.rbind.io/post/np/). 
 
-![](NP_banner.gif)
+![](fig/NP_banner.gif)
 
 ### Structure of the repo
 
