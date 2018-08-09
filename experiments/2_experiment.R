@@ -2,27 +2,33 @@ library(tidyverse)
 library(tensorflow)
 library(patchwork)
 
-source("NP_helpers.R")
 source("NP_core.R")
 source("GP_helpers.R")
 source("helpers_for_plotting.R")
+source("NP_architecture1.R")
 
+# global variables for training the model
 dim_r <- 2L
+dim_z <- 2L
+dim_h_hidden <- 32L
+dim_g_hidden <- 32L
+
 sess <- tf$Session()
-# create all NN weights
-weights <- init_weights(dim_r = dim_r)
+
 # placeholders for training inputs
 x_context <- tf$placeholder(tf$float32, shape(NULL, 1))
 y_context <- tf$placeholder(tf$float32, shape(NULL, 1))
 x_target <- tf$placeholder(tf$float32, shape(NULL, 1))
 y_target <- tf$placeholder(tf$float32, shape(NULL, 1))
+
 # set up NN
-train_op_and_loss <- init_NP(weights, x_context, y_context, x_target, y_target, learning_rate = 0.01)
+train_op_and_loss <- init_NP(x_context, y_context, x_target, y_target, learning_rate = 0.001)
+
 # initialise
 init <- tf$global_variables_initializer()
 sess$run(init)
 
-n_iter <- 30000
+n_iter <- 50000
 
 for(iter in 1:n_iter){
   N <- 20
@@ -34,6 +40,9 @@ for(iter in 1:n_iter){
   N_context <- sample(1:10, 1)
   feed_dict <- helper_context_and_target(x_obs, y_obs, N_context, x_context, y_context, x_target, y_target)
   a <- sess$run(train_op_and_loss, feed_dict = feed_dict)
+  if(iter %% 1e3 == 0){
+    cat(sprintf("loss = %1.3f\n", a[[2]]))
+  }
 }
 
 
@@ -43,7 +52,7 @@ z1 <- seq(-4, 4, length=9)
 z2 <- seq(-4, 4, length=9)
 eps_value <- as.matrix(expand.grid(z1, z2))
 eps <- tf$constant(eps_value, dtype = tf$float32)
-prior_predict_op <- prior_predict(weights, cbind(x_star), epsilon = eps)
+prior_predict_op <- prior_predict(cbind(x_star), epsilon = eps)
 y_star_mat <- sess$run(prior_predict_op$mu)
 reshape_predictions(y_star_mat, x_star) %>% 
   mutate(z1 = eps_value[, 1][rep_index], 
@@ -66,7 +75,7 @@ z1 <- seq(-4, 4, length=41)
 z2 <- seq(-4, 4, length=41)
 eps_value <- as.matrix(expand.grid(z1, z2))
 eps <- tf$constant(eps_value, dtype = tf$float32)
-prior_predict_op <- prior_predict(weights, cbind(x_star), epsilon = eps)
+prior_predict_op <- prior_predict(cbind(x_star), epsilon = eps)
 y_star_mat <- sess$run(prior_predict_op$mu)
 
 df_pred <- y_star_mat %>%
@@ -82,7 +91,6 @@ p1 <- df_pred %>%
   scale_color_viridis_c() +
   theme_classic()
 animate(p1, nframes = 50, width=300, height=250)
-# file.remove("fig/sin_z1.gif")
 # anim_save("fig/sin_z1.gif")
 
 p2 <- df_pred %>%
@@ -93,7 +101,6 @@ p2 <- df_pred %>%
   scale_color_viridis_c() +
   theme_classic()
 animate(p2, nframes = 50, width=300, height=250)
-# file.remove("fig/sin_z2.gif")
 # anim_save("fig/sin_z2.gif")
 
 

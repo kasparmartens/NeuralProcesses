@@ -2,22 +2,28 @@ library(tidyverse)
 library(tensorflow)
 library(patchwork)
 
-source("NP_helpers.R")
 source("NP_core.R")
 source("GP_helpers.R")
 source("helpers_for_plotting.R")
+source("NP_architecture1.R")
 
+# global variables for training the model
 dim_r <- 2L
+dim_z <- 2L
+dim_h_hidden <- 32L
+dim_g_hidden <- 32L
+
 sess <- tf$Session()
-# create all NN weights
-weights <- init_weights(dim_r = dim_r)
+
 # placeholders for training inputs
 x_context <- tf$placeholder(tf$float32, shape(NULL, 1))
 y_context <- tf$placeholder(tf$float32, shape(NULL, 1))
 x_target <- tf$placeholder(tf$float32, shape(NULL, 1))
 y_target <- tf$placeholder(tf$float32, shape(NULL, 1))
+
 # set up NN
-train_op_and_loss <- init_NP(weights, x_context, y_context, x_target, y_target, learning_rate = 0.01)
+train_op_and_loss <- init_NP(x_context, y_context, x_target, y_target, learning_rate = 0.001)
+
 # initialise
 init <- tf$global_variables_initializer()
 sess$run(init)
@@ -32,14 +38,13 @@ for(iter in 1:n_iter){
   y_obs <- as.numeric(mvtnorm::rmvnorm(1, sigma = K))
   
   # sample N_context for training
-  N_context <- sample(5:15, 1)
+  N_context <- sample(1:15, 1)
   feed_dict <- helper_context_and_target(x_obs, y_obs, N_context, x_context, y_context, x_target, y_target)
   a <- sess$run(train_op_and_loss, feed_dict = feed_dict)
-  if(iter %% 1e4 == 0){
+  if(iter %% 1e3 == 0){
     cat(sprintf("loss = %1.3f\n", a[[2]]))
   }
 }
-
 
 
 # create a gif
@@ -79,11 +84,10 @@ p2 <- df_pred %>%
 animate(p2, nframes = 31, fps = 7, width=300, height=175)
 # anim_save("fig/experiment3_2.gif")
 
+
 # Predictions for context points
 x_star <- seq(-4, 4, length=100)
-
 true_f <- function(x) -1.0 * sin(0.5*x)
-# true_f <- function(x) -1.0 * sin(1.5*x)
 
 
 x0 <- seq(-3, 3, length=3)
@@ -93,14 +97,13 @@ p1 <- plot_posterior_draws(x0, y0, x_star, n_draws = 50L) +
 
 x0 <- seq(-3, 3, length=5)
 y0 <- true_f(x0)
-x_star <- seq(-4, 4, length=100)
 p2 <- plot_posterior_draws(x0, y0, x_star, n_draws = 50L)
 
 x0 <- seq(-3, 3, length=11)
 y0 <- true_f(x0)
-x_star <- seq(-4, 4, length=100)
 p3 <- plot_posterior_draws(x0, y0, x_star, n_draws = 50L)
 
+p1 + p2 + p3
 
 # GP predictions for the same set of points
 library(gpflowr)
