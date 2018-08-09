@@ -12,7 +12,7 @@ h <- function(input, W1, b1, W2, b2){
 
 # aggregate the output of h (i.e. values of r_i) to a single vector r
 aggregate_r <- function(input){
-   input %>%
+  input %>%
     tf$reduce_mean(axis=0L) %>%
     tf$reshape(shape(1L, -1L))
 }
@@ -92,7 +92,7 @@ KLqp_gaussian <- function(mu_q, sigma_q, mu_p, sigma_p){
 loglikelihood <- function(y_star, y_pred_params){
   
   p_normal <- tf$distributions$Normal(loc = y_pred_params$mu, scale = y_pred_params$sigma)
-
+  
   loglik <- y_star %>%
     p_normal$log_prob() %>%
     # sum over data points
@@ -114,4 +114,3 @@ helper_context_and_target <- function(x, y, N_context, x_context, y_context, x_t
     y_target = cbind(y[-context_set])
   )
 }
-

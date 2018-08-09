@@ -113,4 +113,3 @@ posterior_predict <- function(weights, x, y, x_star_value, epsilon = NULL, n_dra
   
   y_star
 }
-
