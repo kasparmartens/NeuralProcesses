@@ -8,15 +8,16 @@ This is an implementation of Neural Processes for 1D-regression, accompanying [m
 
 The implementation uses TensorFlow in R:
 
-* The file [NP_helpers.R](https://github.com/kasparmartens/NeuralProcesses/blob/master/NP_helpers.R) defines the neural networks $h$ and $g$ together with some helper functions. 
-* The file [NP_core.R](https://github.com/kasparmartens/NeuralProcesses/blob/master/NP_core.R) contains functions to initialise the weights, to define the loss function and posterior prediction. 
+* The file [NP_core.R](https://github.com/kasparmartens/NeuralProcesses/blob/master/NP_core.R) contains functions to define the loss function and carry out posterior prediction. 
+* The files [NP_architecture*.R](https://github.com/kasparmartens/NeuralProcesses/blob/master/NP_architecture1.R) specify the NN architectures for the encoder *h* and decoder *g*. 
+
+Note: when changing network architecture (e.g. when fitting a new model), please always restart your R session. 
 
 All experiments can be found in the "experiments" folder (where they appear in the same order as in the blog post): 
 
 * The [first experiment](https://github.com/kasparmartens/NeuralProcesses/blob/master/experiments/1_experiment.R) involves training an NP on a single small data set. 
 * The [second experiment](https://github.com/kasparmartens/NeuralProcesses/blob/master/experiments/2_experiment.R) involves training an NP on a small class of functions of the form `a * sin(x)`.
 * The [third experiment](https://github.com/kasparmartens/NeuralProcesses/blob/master/experiments/3_experiment.R) involves training an NP on repeated draws from the GP.
-
 
 ### Example code
 
@@ -27,10 +28,10 @@ library(tidyverse)
 library(tensorflow)
 library(patchwork)
 
-source("NP_helpers.R")
 source("NP_core.R")
 source("GP_helpers.R")
 source("helpers_for_plotting.R")
+source("NP_architecture1.R")
 ```
 
 Setting up the NP model: 
@@ -38,11 +39,11 @@ Setting up the NP model:
 ```R
 sess <- tf$Session()
 
-# choose the dimensionality of latent space
+# specify (global variables) for dimensionality of r, z, and hidden layers of g and h
 dim_r <- 2L
-
-# create all NN weights
-weights <- init_weights(dim_r = dim_r)
+dim_z <- 2L
+dim_h_hidden <- 32L
+dim_g_hidden <- 32L
 
 # placeholders for training inputs
 x_context <- tf$placeholder(tf$float32, shape(NULL, 1))
@@ -51,18 +52,19 @@ x_target <- tf$placeholder(tf$float32, shape(NULL, 1))
 y_target <- tf$placeholder(tf$float32, shape(NULL, 1))
 
 # set up NN
-train_op_and_loss <- init_NP(weights, x_context, y_context, x_target, y_target, learning_rate = 0.01)
+train_op_and_loss <- init_NP(x_context, y_context, x_target, y_target, learning_rate = 0.001)
 
 # initialise
 init <- tf$global_variables_initializer()
 sess$run(init)
 
+n_iter <- 50000
 ```
 
 Now, sampling data according to the function y = a*sin(x),we can fit the model as follows:
 
 ```R
-n_iter <- 30000
+n_iter <- 10000
 
 for(iter in 1:n_iter){
   # sample data (x_obs, y_obs)
@@ -79,6 +81,10 @@ for(iter in 1:n_iter){
   
   # optimisation step
   a <- sess$run(train_op_and_loss, feed_dict = feed_dict)
+  
+  if(iter %% 1e3 == 0){
+    cat(sprintf("loss = %1.3f\n", a[[2]]))
+  }
 }
 ```
 
@@ -96,4 +102,3 @@ x_star <- seq(-4, 4, length=100)
 plot_posterior_draws(x0, y0, x_star, n_draws = 50)
 
 ```
-
