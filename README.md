@@ -9,9 +9,7 @@ This is an implementation of Neural Processes for 1D-regression, accompanying [m
 The implementation uses TensorFlow in R:
 
 * The file [NP_core.R](https://github.com/kasparmartens/NeuralProcesses/blob/master/NP_core.R) contains functions to define the loss function and carry out posterior prediction. 
-* The files [NP_architecture*.R](https://github.com/kasparmartens/NeuralProcesses/blob/master/NP_architecture1.R) specify the NN architectures for the encoder *h* and decoder *g*. 
-
-Note: when changing network architecture (e.g. when fitting a new model), please always restart your R session. 
+* The files [NP_architecture*.R](https://github.com/kasparmartens/NeuralProcesses/blob/master/NP_architecture1.R) specify the NN architectures for the encoder *h* and decoder *g*. (Note: when changing network architecture, e.g. when fitting a new model, you need to run `tf$reset_default_graph()` or restart your R session.)
 
 All experiments can be found in the "experiments" folder (where they appear in the same order as in the blog post): 
 
