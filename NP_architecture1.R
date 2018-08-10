@@ -17,14 +17,10 @@ aggregate_r <- function(input){
 # map aggregated r to (mu_z, sigma_z)
 get_z_params <- function(input_r){
   
-  hidden <- input_r
-  # hidden <- input_r %>%
-  #   tf$layers$dense(dim_r, tf$nn$sigmoid, name = "z_params_layer1", reuse = tf$AUTO_REUSE)
-  
-  mu <- hidden %>%
+  mu <- input_r %>%
     tf$layers$dense(dim_z, name = "z_params_mu", reuse = tf$AUTO_REUSE)
   
-  sigma <- hidden %>%
+  sigma <- input_r %>%
     tf$layers$dense(dim_z, name = "z_params_sigma", reuse = tf$AUTO_REUSE) %>%
     tf$nn$softplus()
   
