@@ -8,8 +8,10 @@ This is an implementation of Neural Processes for 1D-regression, accompanying [m
 
 The implementation uses TensorFlow in R:
 
+* The files [NP_architecture*.R](https://github.com/kasparmartens/NeuralProcesses/blob/master/NP_architecture1.R) specify the NN architectures for the encoder *h* and decoder *g* as well as the aggregator and the mapping from *r* to *z*. 
 * The file [NP_core.R](https://github.com/kasparmartens/NeuralProcesses/blob/master/NP_core.R) contains functions to define the loss function and carry out posterior prediction. 
-* The files [NP_architecture*.R](https://github.com/kasparmartens/NeuralProcesses/blob/master/NP_architecture1.R) specify the NN architectures for the encoder *h* and decoder *g*. (Note: when changing network architecture, e.g. when fitting a new model, you need to run `tf$reset_default_graph()` or restart your R session.)
+
+Note: when changing network architecture, e.g. when fitting a new model, you need to run `tf$reset_default_graph()` or restart your R session.
 
 All experiments can be found in the "experiments" folder (where they appear in the same order as in the blog post): 
 
@@ -26,10 +28,10 @@ library(tidyverse)
 library(tensorflow)
 library(patchwork)
 
+source("NP_architecture1.R")
 source("NP_core.R")
 source("GP_helpers.R")
 source("helpers_for_plotting.R")
-source("NP_architecture1.R")
 ```
 
 Setting up the NP model: 
@@ -55,8 +57,6 @@ train_op_and_loss <- init_NP(x_context, y_context, x_target, y_target, learning_
 # initialise
 init <- tf$global_variables_initializer()
 sess$run(init)
-
-n_iter <- 50000
 ```
 
 Now, sampling data according to the function y = a*sin(x),we can fit the model as follows:
