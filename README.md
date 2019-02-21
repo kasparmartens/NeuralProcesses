@@ -100,3 +100,7 @@ x_star <- seq(-4, 4, length=100)
 plot_posterior_draws(x0, y0, x_star, n_draws = 50)
 
 ```
+
+### Other resources
+
+*Update (February 2019)*: The authors of the Neural Process papers have now made their implementation available here [https://github.com/deepmind/neural-processes](https://github.com/deepmind/neural-processes)
